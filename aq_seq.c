@@ -5,15 +5,36 @@
  * @brief  Alarm queue skeleton implementation
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "aq.h"
 
-typedef struct {
+typedef struct queueNode{
   void *msg;
-  MsgKind K;
+  MsgKind msgKind;
   struct queueNode *next;
 } queueNode;
+
+queueNode *createQueueNode(void *msg) {
+  queueNode *newQueueNode = malloc(sizeof(queueNode));
+  newQueueNode->msg = msg;
+  newQueueNode->next = NULL;
+  return newQueueNode;
+}
+
+void insertAtEnd(queueNode **head, void *msg) {
+  queueNode *newQueueNode = createQueueNode(msg);
+  if (*head == NULL) {
+    *head = newQueueNode;
+    return;
+  }
+  queueNode *temp = *head;
+  while (temp->next != NULL) {
+    temp = temp->next;
+  }
+  temp->next = newQueueNode;
+}
 
 AlarmQueue aq_create( ) {
 
@@ -27,23 +48,21 @@ AlarmQueue aq_create( ) {
 }
 
 int aq_send( AlarmQueue aq, void * msg, MsgKind k){
-  if (k == AQ_ALARM /*&& aq->msg == AQ_ALARM*/) {
-    return AQ_NO_ROOM;
-  }
-
   queueNode head = *(queueNode*)aq;
   queueNode *temp = &head;
-  if (head.msg == NULL) {
-    head.msg = msg;
-    head.K = k;
+
+  // Check if the alarm queue already contains alarm message
+  while (temp->next != NULL) {
+    printf("hello\n");
+    if (temp->msgKind == AQ_ALARM) {
+      return AQ_NO_ROOM;
+    }
+    temp = temp->next;
   }
+  insertAtEnd(&head, msg);
 
-  if (head.next == NULL) {
-    head.next = malloc(sizeof(queueNode));
 
-  }
-
-  return AQ_NOT_IMPL;
+  return k;
 }
 
 int aq_recv( AlarmQueue aq, void * * msg) {
@@ -72,7 +91,7 @@ int aq_alarms( AlarmQueue aq) {
   queueNode *temp = head;
 
   while (temp->next != NULL) {
-    if (temp->K == AQ_ALARM) {
+    if (temp->msgKind == AQ_ALARM) {
       alarmCount++;
     }
 
