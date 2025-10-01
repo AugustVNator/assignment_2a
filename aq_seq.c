@@ -31,6 +31,18 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
     return AQ_NO_ROOM;
   }
 
+  queueNode head = *(queueNode*)aq;
+  queueNode *temp = &head;
+  if (head.msg == NULL) {
+    head.msg = msg;
+    head.K = k;
+  }
+
+  if (head.next == NULL) {
+    head.next = malloc(sizeof(queueNode));
+
+  }
+
   return AQ_NOT_IMPL;
 }
 
@@ -42,11 +54,31 @@ int aq_recv( AlarmQueue aq, void * * msg) {
 }
 
 int aq_size( AlarmQueue aq) {
-  return 0;
+  int size = 0;
+  queueNode *head = aq;
+  queueNode *temp = head;
+
+  while (temp->next != NULL) {
+    size++;
+    temp = temp->next;
+  }
+  return size;
+
 }
 
 int aq_alarms( AlarmQueue aq) {
-  return 0;
+  int alarmCount = 0;
+  queueNode *head = aq;
+  queueNode *temp = head;
+
+  while (temp->next != NULL) {
+    if (temp->K == AQ_ALARM) {
+      alarmCount++;
+    }
+
+    temp = temp->next;
+  }
+  return alarmCount;
 }
 
 
