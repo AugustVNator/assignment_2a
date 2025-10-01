@@ -1,10 +1,5 @@
-.idea/
-
-*.o
-
-mylib
-
-demo
-
-test
-
+*
+!*.h
+!*.c
+!.gitignore
+!Makefile
