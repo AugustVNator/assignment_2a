@@ -41,7 +41,13 @@ AlarmQueue aq_create( ) {
   AlarmQueue **aq = malloc(sizeof(queueNode *));
 
   if (aq != NULL) {
-    *aq = NULL;
+    *aq = NULL; // Initialise head of queue to null
+
+    /**
+     * Header specifies return value
+     * should be "handle to alarm queue".
+     * It seems to be working 
+     */
     return aq;
   }
 
@@ -49,10 +55,10 @@ AlarmQueue aq_create( ) {
 }
 
 int aq_send( AlarmQueue aq, void * msg, MsgKind k){
+  // Guard checks for queue and message
   if ( aq == NULL ) {
     return AQ_UNINIT;
   }
-
   if (msg == NULL) {
     return AQ_NULL_MSG;
   }
@@ -66,12 +72,12 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
     if (temp->msgKind == AQ_ALARM && k == AQ_ALARM) {
       return AQ_NO_ROOM;
     }
-
     temp = temp->next;
   }
+
   insertAtEnd(head, msg, k);
 
-  return k;
+  return 0;
 }
 
 int aq_recv( AlarmQueue aq, void * * msg) {
