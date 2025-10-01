@@ -16,15 +16,16 @@ typedef struct queueNode{
   struct queueNode *next;
 } queueNode;
 
-queueNode *createQueueNode(void *msg) {
+queueNode *createQueueNode(void *msg, MsgKind k) {
   queueNode *newQueueNode = malloc(sizeof(queueNode));
   newQueueNode->msg = msg;
+  newQueueNode->msgKind = k;
   newQueueNode->next = NULL;
   return newQueueNode;
 }
 
-void insertAtEnd(queueNode **head, void *msg) {
-  queueNode *newQueueNode = createQueueNode(msg);
+void insertAtEnd(queueNode **head, void *msg, MsgKind k) {
+  queueNode *newQueueNode = createQueueNode(msg, k);
   if (*head == NULL) {
     *head = newQueueNode;
     return;
@@ -37,30 +38,38 @@ void insertAtEnd(queueNode **head, void *msg) {
 }
 
 AlarmQueue aq_create( ) {
-
-  queueNode *head = malloc(sizeof(queueNode));
-  AlarmQueue aq = &head;
+  AlarmQueue **aq = malloc(sizeof(queueNode *));
 
   if (aq != NULL) {
+    *aq = NULL;
     return aq;
   }
+
   return NULL;
 }
 
 int aq_send( AlarmQueue aq, void * msg, MsgKind k){
-  queueNode head = *(queueNode*)aq;
-  queueNode *temp = &head;
+  if ( aq == NULL ) {
+    return AQ_UNINIT;
+  }
+
+  if (msg == NULL) {
+    return AQ_NULL_MSG;
+  }
+
+
+  queueNode **head = aq;
+  queueNode *temp = *head;
 
   // Check if the alarm queue already contains alarm message
-  while (temp->next != NULL) {
-    printf("hello\n");
-    if (temp->msgKind == AQ_ALARM) {
+  while (temp != NULL) {
+    if (temp->msgKind == AQ_ALARM && k == AQ_ALARM) {
       return AQ_NO_ROOM;
     }
+
     temp = temp->next;
   }
-  insertAtEnd(&head, msg);
-
+  insertAtEnd(head, msg, k);
 
   return k;
 }
@@ -69,15 +78,18 @@ int aq_recv( AlarmQueue aq, void * * msg) {
   if (msg == NULL) {
     return AQ_NO_MSG;
   }
+
+
+
   return AQ_NOT_IMPL;
 }
 
 int aq_size( AlarmQueue aq) {
   int size = 0;
-  queueNode *head = aq;
-  queueNode *temp = head;
+  queueNode **head = aq;
+  queueNode *temp = *head;
 
-  while (temp->next != NULL) {
+  while (temp != NULL) {
     size++;
     temp = temp->next;
   }
@@ -87,10 +99,10 @@ int aq_size( AlarmQueue aq) {
 
 int aq_alarms( AlarmQueue aq) {
   int alarmCount = 0;
-  queueNode *head = aq;
-  queueNode *temp = head;
+  queueNode **head = aq;
+  queueNode *temp = *head;
 
-  while (temp->next != NULL) {
+  while (temp!= NULL) {
     if (temp->msgKind == AQ_ALARM) {
       alarmCount++;
     }
