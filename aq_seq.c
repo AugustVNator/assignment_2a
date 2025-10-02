@@ -37,12 +37,13 @@ void insertAtEnd(queueNode **head, void *msg, MsgKind k) {
   temp->next = newQueueNode;
 }
 
-int deleteNode(queueNode **head, void **msg) {
+int deleteNode(queueNode **head, int msgContent, void **msg) {
   queueNode **tempP = head;
   queueNode *temp = *head;
   while (temp != NULL) {
-    if (temp->msg == msg) {
-      int retval = temp->msgKind;
+    if (*(int*)temp->msg == msgContent) {
+      int retval = *(int*)temp->msg;
+      *msg = temp->msg;
       *tempP = temp->next;
       free (temp);
       return retval;
@@ -111,27 +112,22 @@ int aq_recv( AlarmQueue aq, void * * msg) {
 
   // Check if any of the messages are of alarm kind
   while (temp != NULL) {
-    printf("I reach alarm\n");
-    if (temp->msgKind == AQ_ALARM && temp->msg == msg) {
-      printf("I reach inner alarm\n");
-      return deleteNode(head, msg);
+    if (temp->msgKind == AQ_ALARM) {
+      return deleteNode(head, *(int*)temp->msg, msg);;
     }
     temp = temp->next;
   }
 
-  printf("I reach reset\n");
+
   // Reset temp to head
   temp = *head;
+  /**
+   * We could have a dequeue function here instead,
+   * but for now we reuse the same function to reduce overhead.
+   * It's a bit janky, but ok for now
+  */
+  return deleteNode(head, *(int*)temp->msg, msg);
 
-  while (temp != NULL) {
-    printf("I reach normal\n");
-    if (temp->msg == msg) {
-      printf("I reach inner normal\n");
-      return deleteNode(head, msg);
-    }
-    temp = temp->next;
-  }
-  return 0;
 }
 
 int aq_size( AlarmQueue aq) {
