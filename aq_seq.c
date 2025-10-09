@@ -42,7 +42,7 @@ int deleteNode(queueNode **head, int msgContent, void **msg) {
   queueNode *temp = *head;
   while (temp != NULL) {
     if (*(int*)temp->msg == msgContent) {
-      int retval = *(int*)temp->msg;
+      MsgKind retval = temp->msgKind;
       *msg = temp->msg;
       *tempP = temp->next;
       free (temp);

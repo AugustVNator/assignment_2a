@@ -46,7 +46,7 @@ int deleteNode(queueNode **head, int msgContent, void **msg) {
   queueNode *temp = *head;
   while (temp != NULL) {
     if (*(int*)temp->msg == msgContent) {
-      int retval = *(int*)temp->msg;
+      MsgKind retval = temp->msgKind;
       *msg = temp->msg;
       *tempP = temp->next;
       free (temp);
@@ -103,11 +103,10 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
 }
 
 int aq_recv(AlarmQueue aq, void * * msg) {
-  if (msg == NULL) {
+    if (msg == NULL) {
     return AQ_NULL_MSG;
   }
-
- if (aq == NULL ) {
+  if (aq == NULL) {
     return AQ_UNINIT;
   }
   pthread_mutex_lock(&lock);
@@ -121,15 +120,18 @@ int aq_recv(AlarmQueue aq, void * * msg) {
 
   while (temp != NULL) {
     if (temp->msgKind == AQ_ALARM) {
-      int ret = deleteNode(head, *(int*)temp->msg, msg);
+      int kind = deleteNode(head, *(int*)temp->msg, msg);
       pthread_cond_signal(&alarmFree);
       pthread_mutex_unlock(&lock);
-      return AQ_ALARM;
+      return kind;
     }
     temp = temp->next;
   }
+
+  temp = *head;
+  MsgKind kind = deleteNode(head, temp->msgKind, msg);
   pthread_mutex_unlock(&lock);
-  return deleteNode(head, *(int*)temp->msg, msg);
+  return kind;
 }
 
 int aq_size( AlarmQueue aq) {
