@@ -60,7 +60,6 @@ int deleteNode(queueNode **head, int msgContent, void **msg) {
 
 AlarmQueue aq_create( ) {
   AlarmQueue **aq = malloc(sizeof(queueNode *));
-
   if (aq != NULL) {
     *aq = NULL;
     return aq;
@@ -69,7 +68,7 @@ AlarmQueue aq_create( ) {
 }
 
 int aq_send( AlarmQueue aq, void * msg, MsgKind k){
-  if ( aq == NULL ) {
+  if (aq == NULL ) {
     return AQ_UNINIT;
   }
   if (msg == NULL) {
@@ -79,21 +78,26 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
   pthread_mutex_lock(&lock);
   queueNode **head = aq;
 
-  while (*head == NULL) {
-    pthread_cond_wait(&notEmpty, &lock);
-  }
-
-  queueNode *temp = *head;
-
-  while (temp != NULL) {
-    if (temp->msgKind == AQ_ALARM && k == AQ_ALARM) {
-      pthread_mutex_unlock(&lock);
-      return AQ_NO_ROOM;
+  if (k == AQ_ALARM) {
+    for (;;) {
+      int alarm_present = 0;
+      for (queueNode *temp = *head; temp != NULL; temp = temp->next) {
+        if (temp->msgKind == AQ_ALARM) {
+          alarm_present = 1;
+          break;
+        }
+      }
+      if (!alarm_present) break;
+      pthread_cond_wait(&alarmFree, &lock);
     }
-    temp = temp->next;
+  }
+  int was_empty = (*head == NULL);
+  insertAtEnd(head, msg, k);
+
+  if (was_empty) {
+    pthread_cond_signal(&notEmpty);
   }
 
-  insertAtEnd(head, msg, k);
   pthread_mutex_unlock(&lock);
   return 0;
 }
@@ -101,6 +105,10 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
 int aq_recv(AlarmQueue aq, void * * msg) {
   if (msg == NULL) {
     return AQ_NULL_MSG;
+  }
+
+ if (aq == NULL ) {
+    return AQ_UNINIT;
   }
   pthread_mutex_lock(&lock);
   queueNode **head = aq;
@@ -113,8 +121,10 @@ int aq_recv(AlarmQueue aq, void * * msg) {
 
   while (temp != NULL) {
     if (temp->msgKind == AQ_ALARM) {
+      int ret = deleteNode(head, *(int*)temp->msg, msg);
+      pthread_cond_signal(&alarmFree);
       pthread_mutex_unlock(&lock);
-     return deleteNode(head, *(int*)temp->msg, msg);
+      return AQ_ALARM;
     }
     temp = temp->next;
   }
@@ -137,7 +147,7 @@ int aq_size( AlarmQueue aq) {
   return size;
 }
 
-int aq_alarms( AlarmQueue aq) {
+int aq_alarms(AlarmQueue aq) {
   int alarmCount = 0;
   pthread_mutex_lock(&lock);
   queueNode **head = aq;
@@ -147,7 +157,6 @@ int aq_alarms( AlarmQueue aq) {
     if (temp->msgKind == AQ_ALARM) {
       alarmCount++;
     }
-
     temp = temp->next;
   }
   pthread_mutex_unlock(&lock);
