@@ -130,11 +130,35 @@ int aq_recv(AlarmQueue aq, void * * msg) {
 }
 
 int aq_size( AlarmQueue aq) {
-  return 0;
+  int size = 0;
+
+  pthread_mutex_lock(&lock);
+  queueNode **head = aq;
+  queueNode *temp = *head;
+
+  while (temp != NULL) {
+    size++;
+    temp = temp->next;
+  }
+  pthread_mutex_unlock(&lock);
+  return size;
 }
 
 int aq_alarms( AlarmQueue aq) {
-  return 0;
+  int alarmCount = 0;
+  pthread_mutex_lock(&lock);
+  queueNode **head = aq;
+  queueNode *temp = *head;
+
+  while (temp!= NULL) {
+    if (temp->msgKind == AQ_ALARM) {
+      alarmCount++;
+    }
+
+    temp = temp->next;
+  }
+  pthread_mutex_unlock(&lock);
+  return alarmCount;
 }
 
 

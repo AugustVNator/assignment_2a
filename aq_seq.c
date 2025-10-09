@@ -140,7 +140,6 @@ int aq_size( AlarmQueue aq) {
     temp = temp->next;
   }
   return size;
-
 }
 
 int aq_alarms( AlarmQueue aq) {
