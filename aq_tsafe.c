@@ -78,6 +78,11 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
 
   pthread_mutex_lock(&lock);
   queueNode **head = aq;
+
+  while (*head == NULL) {
+    pthread_cond_wait(&notEmpty, &lock);
+  }
+
   queueNode *temp = *head;
 
   while (temp != NULL) {
@@ -115,22 +120,13 @@ int aq_recv(AlarmQueue aq, void * * msg) {
     temp = temp->next;
   }
 
-  if (*head == NULL) {
-    pthread_mutex_unlock(&lock);
-    return AQ_NO_MSG;
-  }
-
   while (temp != NULL) {
     if (temp->msgKind == AQ_ALARM) {
-      pthread_mutex_unlock(&lock);
       return deleteNode(head, *(int*)temp->msg, msg);;
     }
     temp = temp->next;
   }
 
-  temp = *head;
-  pthread_mutex_unlock(&lock);
-  return deleteNode(head, *(int*)temp->msg, msg);
 }
 
 int aq_size( AlarmQueue aq) {
