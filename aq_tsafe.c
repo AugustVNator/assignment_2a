@@ -110,23 +110,16 @@ int aq_recv(AlarmQueue aq, void * * msg) {
   }
 
   queueNode *temp = *head;
-  queueNode *prio = NULL;
 
   while (temp != NULL) {
     if (temp->msgKind == AQ_ALARM) {
-      prio = temp;
-      break;
+      pthread_mutex_unlock(&lock);
+     return deleteNode(head, *(int*)temp->msg, msg);
     }
     temp = temp->next;
   }
-
-  while (temp != NULL) {
-    if (temp->msgKind == AQ_ALARM) {
-      return deleteNode(head, *(int*)temp->msg, msg);;
-    }
-    temp = temp->next;
-  }
-
+  pthread_mutex_unlock(&lock);
+  return deleteNode(head, *(int*)temp->msg, msg);
 }
 
 int aq_size( AlarmQueue aq) {
