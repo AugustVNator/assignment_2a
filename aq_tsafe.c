@@ -61,15 +61,8 @@ int deleteNode(queueNode **head, int msgContent, void **msg) {
   return -1;
 }
 
-int testSetLock (Queue *queue) {
-  int initialValueOfLock = (int) &queue->lock ;
-  printf("%d \n", initialValueOfLock);
-  pthread_mutex_lock(&queue->lock);
-  return initialValueOfLock;
-}
-
 AlarmQueue aq_create( ) {
-  Queue *aq = malloc(sizeof(Queue *));
+  Queue *aq = malloc(sizeof(Queue));
   if (aq != NULL) {
     aq->head = NULL;
     pthread_mutex_init(&(aq->lock), NULL);
@@ -88,20 +81,20 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
   }
   Queue *queue = aq;
 
-  while (testSetLock(queue) == 1) {}
+  pthread_mutex_lock(&queue->lock);
 
-  queueNode **head = &queue->head;
-  queueNode *temp = *head;
+
+  queueNode *temp = queue->head;
 
   while (temp != NULL) {
     if (temp->msgKind == AQ_ALARM && k == AQ_ALARM) {
+      pthread_mutex_unlock(&queue->lock);
       return AQ_NO_ROOM;
     }
     temp = temp->next;
   }
-  insertAtEnd(head, msg, k);
-
-
+  insertAtEnd(&queue->head, msg, k);
+  pthread_cond_signal(&queue->cond);
   pthread_mutex_unlock(&queue->lock);
   return 0;
 }
@@ -115,52 +108,53 @@ int aq_recv(AlarmQueue aq, void * * msg) {
   }
 
   Queue *queue = aq;
-  while (testSetLock(queue) == 1) {}
 
-  queueNode **head = &queue->head;
+  pthread_mutex_lock(&queue->lock);
 
-  while (*head == NULL) {
-    pthread_cond_wait(&notEmpty, &lock);
+
+  queueNode *temp = queue->head;
+
+  if (queue->head == NULL) {
+    pthread_mutex_unlock(&queue->lock);
+    return AQ_NO_MSG;  // or you could block with pthread_cond_wait
   }
-
-  queueNode *temp = *head;
-
   while (temp != NULL) {
     if (temp->msgKind == AQ_ALARM) {
-      int kind = deleteNode(head, *(int*)temp->msg, msg);
-      pthread_cond_signal(&alarmFree);
-      pthread_mutex_unlock(&lock);
+      int kind = deleteNode(&queue->head, *(int*)temp->msg, msg);
+
+      pthread_mutex_unlock(&queue->lock);
       return kind;
     }
     temp = temp->next;
   }
 
-  temp = *head;
-  MsgKind kind = deleteNode(head, temp->msgKind, msg);
-  pthread_mutex_unlock(&lock);
+  temp = queue->head;
+  MsgKind kind = deleteNode(&queue->head, temp->msgKind, msg);
+  pthread_mutex_unlock(&queue->lock);
   return kind;
 }
 
 int aq_size( AlarmQueue aq) {
   int size = 0;
+  Queue *queue = aq;
+  pthread_mutex_lock(&queue->lock);
 
-  pthread_mutex_lock(&lock);
-  queueNode **head = aq;
-  queueNode *temp = *head;
+  queueNode *temp = queue->head;
 
   while (temp != NULL) {
     size++;
     temp = temp->next;
   }
-  pthread_mutex_unlock(&lock);
+  pthread_mutex_unlock(&queue->lock);
   return size;
 }
 
 int aq_alarms(AlarmQueue aq) {
   int alarmCount = 0;
-  pthread_mutex_lock(&lock);
-  queueNode **head = aq;
-  queueNode *temp = *head;
+  Queue *queue = aq;
+  pthread_mutex_lock(&queue->lock);
+
+  queueNode *temp = queue->head;
 
   while (temp!= NULL) {
     if (temp->msgKind == AQ_ALARM) {
@@ -168,7 +162,7 @@ int aq_alarms(AlarmQueue aq) {
     }
     temp = temp->next;
   }
-  pthread_mutex_unlock(&lock);
+  pthread_mutex_unlock(&queue->lock);
   return alarmCount;
 }
 
