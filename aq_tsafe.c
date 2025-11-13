@@ -86,18 +86,22 @@ int aq_send(AlarmQueue aq, void *msg, MsgKind k) {
 
     queueNode *temp = queue->head;
 
-    while (temp != NULL) {
-        if (temp->msgKind == AQ_ALARM && k == AQ_ALARM) {
-            pthread_cond_wait(&queue->message_sent, &queue->lock);
-            insertAtEnd(&queue->head, msg, k);
-            pthread_mutex_unlock(&queue->lock);
-            return 0;
+    if (k == AQ_ALARM) {
+        while (temp != NULL) {
+            if (temp->msgKind == AQ_ALARM ) {
+                pthread_cond_wait(&queue->alarm_received, &queue->lock);
+                //insertAtEnd(&queue->head, msg, k);
+                //pthread_mutex_unlock(&queue->lock);
+                //return 0;
+            }
+            temp = temp->next;
         }
-        temp = temp->next;
     }
     insertAtEnd(&queue->head, msg, k);
 
+    pthread_cond_signal(&queue->message_sent);
     pthread_mutex_unlock(&queue->lock);
+
     return 0;
 }
 
@@ -108,6 +112,9 @@ int aq_recv(AlarmQueue aq, void * *msg) {
     Queue *queue = aq;
 
     pthread_mutex_lock(&queue->lock);
+    while (queue->head == NULL) {
+        pthread_cond_wait(&queue->message_sent, &queue->lock);
+    }
 
     queueNode *temp = queue->head;
 
@@ -116,6 +123,7 @@ int aq_recv(AlarmQueue aq, void * *msg) {
     while (temp != NULL) {
         if (temp->msgKind == AQ_ALARM) {
             int kind = deleteNode(&queue->head, *(int *) temp->msg, msg);
+
             pthread_cond_signal(&queue->alarm_received);
             pthread_mutex_unlock(&queue->lock);
             return kind;
@@ -131,7 +139,7 @@ int aq_recv(AlarmQueue aq, void * *msg) {
 
     temp = queue->head;
 
-    MsgKind kind = deleteNode(&queue->head, temp->msgKind, msg);
+    int kind = deleteNode(&queue->head, temp->msgKind, msg);
     pthread_mutex_unlock(&queue->lock);
     return kind;
 }
