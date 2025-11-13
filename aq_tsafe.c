@@ -17,10 +17,13 @@ typedef struct queueNode{
   struct queueNode *next;
 } queueNode;
 
+// We need to deviate from our sequential implementation,
+// because of the pthread variables needs to be queue specific, not node specific
 typedef struct Queue {
   queueNode *head;
   pthread_mutex_t lock;
-  pthread_cond_t cond;
+  pthread_cond_t alarm_received;
+  pthread_cond_t message_sent;
 } Queue;
 
 queueNode *createQueueNode(void *msg, MsgKind k) {
@@ -66,10 +69,11 @@ AlarmQueue aq_create( ) {
   if (aq != NULL) {
     aq->head = NULL;
     pthread_mutex_init(&(aq->lock), NULL);
-    pthread_cond_init(&(aq->cond), NULL);
+    pthread_cond_init(&(aq->alarm_received), NULL);
+    pthread_cond_init(&(aq->message_sent), NULL);
     return aq;
   }
-  return NULL;
+return NULL;
 }
 
 int aq_send( AlarmQueue aq, void * msg, MsgKind k){
@@ -88,13 +92,15 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
 
   while (temp != NULL) {
     if (temp->msgKind == AQ_ALARM && k == AQ_ALARM) {
+      pthread_cond_wait(&queue->message_sent, &queue->lock);
+      insertAtEnd(&queue->head, msg, k);
       pthread_mutex_unlock(&queue->lock);
-      return AQ_NO_ROOM;
+      return 0;
     }
     temp = temp->next;
   }
   insertAtEnd(&queue->head, msg, k);
-  pthread_cond_signal(&queue->cond);
+
   pthread_mutex_unlock(&queue->lock);
   return 0;
 }
@@ -111,24 +117,30 @@ int aq_recv(AlarmQueue aq, void * * msg) {
 
   pthread_mutex_lock(&queue->lock);
 
-
   queueNode *temp = queue->head;
 
-  if (queue->head == NULL) {
-    pthread_mutex_unlock(&queue->lock);
-    return AQ_NO_MSG;  // or you could block with pthread_cond_wait
-  }
-  while (temp != NULL) {
-    if (temp->msgKind == AQ_ALARM) {
-      int kind = deleteNode(&queue->head, *(int*)temp->msg, msg);
 
+  // Check if any of the messages are of alarm kind
+  while (temp != NULL) {
+
+    if (temp->msgKind == AQ_ALARM) {
+
+      int kind = deleteNode(&queue->head, *(int*)temp->msg, msg);
+      pthread_cond_signal(&queue->alarm_received);
       pthread_mutex_unlock(&queue->lock);
       return kind;
     }
     temp = temp->next;
   }
 
+
+  if (queue->head == NULL) {
+      pthread_mutex_unlock(&queue->lock);
+      return AQ_NO_MSG;
+    }
+
   temp = queue->head;
+
   MsgKind kind = deleteNode(&queue->head, temp->msgKind, msg);
   pthread_mutex_unlock(&queue->lock);
   return kind;
