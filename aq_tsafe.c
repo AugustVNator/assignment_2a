@@ -2,7 +2,7 @@
  * @file   aq.c
  * @Author 02335 team
  * @date   October, 2024
- * @brief  Alarm queue skeleton implementation
+ * @brief  Alarm queue implementation - FIXED v3
  */
 
 #include "aq.h"
@@ -84,62 +84,79 @@ int aq_send(AlarmQueue aq, void *msg, MsgKind k) {
 
     pthread_mutex_lock(&queue->lock);
 
-    queueNode *temp = queue->head;
-
+    // If sending an alarm, wait until no alarm exists in queue
     if (k == AQ_ALARM) {
+        queueNode *temp = queue->head;
+        int alarmExists = 0;
+
+        // Check if alarm exists
         while (temp != NULL) {
-            if (temp->msgKind == AQ_ALARM ) {
-                pthread_cond_wait(&queue->alarm_received, &queue->lock);
-                //insertAtEnd(&queue->head, msg, k);
-                //pthread_mutex_unlock(&queue->lock);
-                //return 0;
+            if (temp->msgKind == AQ_ALARM) {
+                alarmExists = 1;
+                break;
             }
             temp = temp->next;
         }
+
+        // Wait while alarm exists
+        while (alarmExists) {
+            pthread_cond_wait(&queue->alarm_received, &queue->lock);
+
+            temp = queue->head;
+            alarmExists = 0;
+            while (temp != NULL) {
+                if (temp->msgKind == AQ_ALARM) {
+                    alarmExists = 1;
+                    break;
+                }
+                temp = temp->next;
+            }
+        }
     }
+
+    // Insert the message
     insertAtEnd(&queue->head, msg, k);
 
+    // Signal that a message is available
     pthread_cond_signal(&queue->message_sent);
-    pthread_mutex_unlock(&queue->lock);
 
+    pthread_mutex_unlock(&queue->lock);
     return 0;
 }
 
-int aq_recv(AlarmQueue aq, void * *msg) {
+int aq_recv(AlarmQueue aq, void **msg) {
     if (msg == NULL) return AQ_NULL_MSG;
     if (aq == NULL) return AQ_UNINIT;
 
     Queue *queue = aq;
 
     pthread_mutex_lock(&queue->lock);
+
+    // Wait until at least one message is available
     while (queue->head == NULL) {
         pthread_cond_wait(&queue->message_sent, &queue->lock);
     }
 
     queueNode *temp = queue->head;
 
-
-    // Check if any of the messages are of alarm kind
+    // Check if any message is an alarm
     while (temp != NULL) {
         if (temp->msgKind == AQ_ALARM) {
             int kind = deleteNode(&queue->head, *(int *) temp->msg, msg);
 
+            // Signal that alarm slot is now free
             pthread_cond_signal(&queue->alarm_received);
+
             pthread_mutex_unlock(&queue->lock);
             return kind;
         }
         temp = temp->next;
     }
 
-
-    if (queue->head == NULL) {
-        pthread_mutex_unlock(&queue->lock);
-        return AQ_NO_MSG;
-    }
-
+    // No alarm found, get first normal message
     temp = queue->head;
+    int kind = deleteNode(&queue->head, *(int *) temp->msg, msg);
 
-    int kind = deleteNode(&queue->head, temp->msgKind, msg);
     pthread_mutex_unlock(&queue->lock);
     return kind;
 }
