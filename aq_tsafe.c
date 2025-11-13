@@ -10,15 +10,18 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t  notEmpty  = PTHREAD_COND_INITIALIZER;
-static pthread_cond_t  alarmFree = PTHREAD_COND_INITIALIZER;
 
 typedef struct queueNode{
   void *msg;
   MsgKind msgKind;
   struct queueNode *next;
 } queueNode;
+
+typedef struct Queue {
+  queueNode *head;
+  pthread_mutex_t lock;
+  pthread_cond_t cond;
+} Queue;
 
 queueNode *createQueueNode(void *msg, MsgKind k) {
   queueNode *newQueueNode = malloc(sizeof(queueNode));
@@ -58,10 +61,19 @@ int deleteNode(queueNode **head, int msgContent, void **msg) {
   return -1;
 }
 
+int testSetLock (Queue *queue) {
+  int initialValueOfLock = (int) &queue->lock ;
+  printf("%d \n", initialValueOfLock);
+  pthread_mutex_lock(&queue->lock);
+  return initialValueOfLock;
+}
+
 AlarmQueue aq_create( ) {
-  AlarmQueue **aq = malloc(sizeof(queueNode *));
+  Queue *aq = malloc(sizeof(Queue *));
   if (aq != NULL) {
-    *aq = NULL;
+    aq->head = NULL;
+    pthread_mutex_init(&(aq->lock), NULL);
+    pthread_cond_init(&(aq->cond), NULL);
     return aq;
   }
   return NULL;
@@ -74,31 +86,23 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
   if (msg == NULL) {
     return AQ_NULL_MSG;
   }
+  Queue *queue = aq;
 
-  pthread_mutex_lock(&lock);
-  queueNode **head = aq;
+  while (testSetLock(queue) == 1) {}
 
-  if (k == AQ_ALARM) {
-    for (;;) {
-      int alarm_present = 0;
-      for (queueNode *temp = *head; temp != NULL; temp = temp->next) {
-        if (temp->msgKind == AQ_ALARM) {
-          alarm_present = 1;
-          break;
-        }
-      }
-      if (!alarm_present) break;
-      pthread_cond_wait(&alarmFree, &lock);
+  queueNode **head = &queue->head;
+  queueNode *temp = *head;
+
+  while (temp != NULL) {
+    if (temp->msgKind == AQ_ALARM && k == AQ_ALARM) {
+      return AQ_NO_ROOM;
     }
+    temp = temp->next;
   }
-  int was_empty = (*head == NULL);
   insertAtEnd(head, msg, k);
 
-  if (was_empty) {
-    pthread_cond_signal(&notEmpty);
-  }
 
-  pthread_mutex_unlock(&lock);
+  pthread_mutex_unlock(&queue->lock);
   return 0;
 }
 
@@ -109,8 +113,11 @@ int aq_recv(AlarmQueue aq, void * * msg) {
   if (aq == NULL) {
     return AQ_UNINIT;
   }
-  pthread_mutex_lock(&lock);
-  queueNode **head = aq;
+
+  Queue *queue = aq;
+  while (testSetLock(queue) == 1) {}
+
+  queueNode **head = &queue->head;
 
   while (*head == NULL) {
     pthread_cond_wait(&notEmpty, &lock);
