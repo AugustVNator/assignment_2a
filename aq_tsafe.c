@@ -77,16 +77,12 @@ AlarmQueue aq_create() {
 }
 
 int aq_send(AlarmQueue aq, void *msg, MsgKind k) {
-    if (aq == NULL) {
-        return AQ_UNINIT;
-    }
-    if (msg == NULL) {
-        return AQ_NULL_MSG;
-    }
+    if (msg == NULL) return AQ_NULL_MSG;
+    if (aq == NULL) return AQ_UNINIT;
+
     Queue *queue = aq;
 
     pthread_mutex_lock(&queue->lock);
-
 
     queueNode *temp = queue->head;
 
@@ -106,12 +102,8 @@ int aq_send(AlarmQueue aq, void *msg, MsgKind k) {
 }
 
 int aq_recv(AlarmQueue aq, void * *msg) {
-    if (msg == NULL) {
-        return AQ_NULL_MSG;
-    }
-    if (aq == NULL) {
-        return AQ_UNINIT;
-    }
+    if (msg == NULL) return AQ_NULL_MSG;
+    if (aq == NULL) return AQ_UNINIT;
 
     Queue *queue = aq;
 
