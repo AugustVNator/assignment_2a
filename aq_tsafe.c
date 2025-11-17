@@ -17,10 +17,9 @@ typedef struct queueNode {
     struct queueNode *next;
 } queueNode;
 
-// We need to deviate from our sequential implementation,
-// because of the pthread variables needs to be queue specific, not node specific
 typedef struct Queue {
     queueNode *head;
+    int alarmEnqueued;  // Flag: 1 if alarm in queue, 0 otherwise
     pthread_mutex_t lock;
     pthread_cond_t alarm_received;
     pthread_cond_t message_sent;
@@ -68,6 +67,7 @@ AlarmQueue aq_create() {
     Queue *aq = malloc(sizeof(Queue));
     if (aq != NULL) {
         aq->head = NULL;
+        aq->alarmEnqueued = 0;  // Initially no alarm
         pthread_mutex_init(&(aq->lock), NULL);
         pthread_cond_init(&(aq->alarm_received), NULL);
         pthread_cond_init(&(aq->message_sent), NULL);
@@ -86,32 +86,10 @@ int aq_send(AlarmQueue aq, void *msg, MsgKind k) {
 
     // If sending an alarm, wait until no alarm exists in queue
     if (k == AQ_ALARM) {
-        queueNode *temp = queue->head;
-        int alarmExists = 0;
-
-        // Check if alarm exists
-        while (temp != NULL) {
-            if (temp->msgKind == AQ_ALARM) {
-                alarmExists = 1;
-                break;
-            }
-            temp = temp->next;
-        }
-
-        // Wait while alarm exists
-        while (alarmExists) {
+        while (queue->alarmEnqueued) {
             pthread_cond_wait(&queue->alarm_received, &queue->lock);
-
-            temp = queue->head;
-            alarmExists = 0;
-            while (temp != NULL) {
-                if (temp->msgKind == AQ_ALARM) {
-                    alarmExists = 1;
-                    break;
-                }
-                temp = temp->next;
-            }
         }
+        queue->alarmEnqueued = 1;  // Mark alarm as enqueued
     }
 
     // Insert the message
@@ -144,7 +122,8 @@ int aq_recv(AlarmQueue aq, void **msg) {
         if (temp->msgKind == AQ_ALARM) {
             int kind = deleteNode(&queue->head, *(int *) temp->msg, msg);
 
-            // Signal that alarm slot is now free
+            // Clear alarm flag and signal that alarm slot is now free
+            queue->alarmEnqueued = 0;
             pthread_cond_signal(&queue->alarm_received);
 
             pthread_mutex_unlock(&queue->lock);
@@ -177,18 +156,9 @@ int aq_size(AlarmQueue aq) {
 }
 
 int aq_alarms(AlarmQueue aq) {
-    int alarmCount = 0;
     Queue *queue = aq;
     pthread_mutex_lock(&queue->lock);
-
-    queueNode *temp = queue->head;
-
-    while (temp != NULL) {
-        if (temp->msgKind == AQ_ALARM) {
-            alarmCount++;
-        }
-        temp = temp->next;
-    }
+    int count = queue->alarmEnqueued;
     pthread_mutex_unlock(&queue->lock);
-    return alarmCount;
+    return count;
 }
