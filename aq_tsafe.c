@@ -19,7 +19,7 @@ typedef struct queueNode {
 
 typedef struct Queue {
     queueNode *head;
-    int alarmEnqueued;  // Flag: 1 if alarm in queue, 0 otherwise
+    int alarmEnqueued;
     pthread_mutex_t lock;
     pthread_cond_t alarm_received;
     pthread_cond_t message_sent;
@@ -67,7 +67,7 @@ AlarmQueue aq_create() {
     Queue *aq = malloc(sizeof(Queue));
     if (aq != NULL) {
         aq->head = NULL;
-        aq->alarmEnqueued = 0;  // Initially no alarm
+        aq->alarmEnqueued = 0;
         pthread_mutex_init(&(aq->lock), NULL);
         pthread_cond_init(&(aq->alarm_received), NULL);
         pthread_cond_init(&(aq->message_sent), NULL);
@@ -92,7 +92,6 @@ int aq_send(AlarmQueue aq, void *msg, MsgKind k) {
         queue->alarmEnqueued = 1;  // Mark alarm as enqueued
     }
 
-    // Insert the message
     insertAtEnd(&queue->head, msg, k);
 
     // Signal that a message is available
@@ -132,7 +131,7 @@ int aq_recv(AlarmQueue aq, void **msg) {
         temp = temp->next;
     }
 
-    // No alarm found, get first normal message
+    // No alarm message found, get first normal message
     temp = queue->head;
     int kind = deleteNode(&queue->head, *(int *) temp->msg, msg);
 
@@ -140,6 +139,8 @@ int aq_recv(AlarmQueue aq, void **msg) {
     return kind;
 }
 
+// Not sure we need locks on size functions 
+// letting them be for now just in case.
 int aq_size(AlarmQueue aq) {
     int size = 0;
     Queue *queue = aq;
