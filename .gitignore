@@ -3,4 +3,3 @@
 !*.c
 !.gitignore
 !Makefile
-/test3.c
