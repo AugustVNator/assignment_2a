@@ -116,19 +116,14 @@ int aq_recv(AlarmQueue aq, void **msg) {
 
     queueNode *temp = queue->head;
 
-    // Check if any message is an alarm
-    while (temp != NULL) {
-        if (temp->msgKind == AQ_ALARM) {
-            int kind = deleteNode(&queue->head, *(int *) temp->msg, msg);
-
-            // Clear alarm flag and signal that alarm slot is now free
-            queue->alarmEnqueued = 0;
-            pthread_cond_signal(&queue->alarm_received);
-
-            pthread_mutex_unlock(&queue->lock);
-            return kind;
-        }
-        temp = temp->next;
+    // Check if queue has alarm msg
+    if (queue->alarmEnqueued) {
+        int kind = deleteNode(&queue->head, *(int *) temp-> msg, msg);
+        // Clear alarm flag and signal that alarm slot is now free
+        queue->alarmEnqueued = 0;
+        pthread_cond_signal(&queue->alarm_received);
+        pthread_mutex_unlock(&queue->lock);
+        return kind;
     }
 
     // No alarm message found, get first normal message
