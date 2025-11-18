@@ -118,9 +118,12 @@ int aq_recv(AlarmQueue aq, void **msg) {
 
     // Check if queue has alarm msg
     if (queue->alarmEnqueued) {
+
         int kind = deleteNode(&queue->head, *(int *) temp-> msg, msg);
+
         // Clear alarm flag and signal that alarm slot is now free
         queue->alarmEnqueued = 0;
+
         pthread_cond_signal(&queue->alarm_received);
         pthread_mutex_unlock(&queue->lock);
         return kind;
